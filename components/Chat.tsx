@@ -62,6 +62,17 @@ const TrashIcon = () => (
     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
   </svg>
 );
+const MicIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="3" width="6" height="12" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+  </svg>
+);
+const WaveIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+    <path d="M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4" />
+  </svg>
+);
 
 const railBtn =
   "flex h-10 w-10 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-pink-500/15 hover:text-pink-300";
@@ -239,6 +250,19 @@ export default function Chat() {
 }
 
 /* ---------- One conversation ---------- */
+type VoiceState = "idle" | "listening" | "thinking" | "speaking";
+
+function cleanForSpeech(text: string) {
+  return text
+    .replace(/```[\s\S]*?```/g, " code block. ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^\s*[-•]\s+/gm, "")
+    .replace(/[*#>_~|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function ChatPane({
   chatId,
   initialMessages,
@@ -285,6 +309,208 @@ function ChatPane({
     send(input);
   }
 
+  /* ===== Voice ===== */
+  const [supported, setSupported] = useState(false);
+  const [dictating, setDictating] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
+  const [heard, setHeard] = useState("");
+  const [voiceError, setVoiceError] = useState("");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = useRef<any>(null);
+  const voiceOnRef = useRef(false);
+  const awaitingReplyRef = useRef(false);
+  const speakTokenRef = useRef(0);
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const prevBusyRef = useRef(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    setSupported(
+      !!(w.SpeechRecognition || w.webkitSpeechRecognition) &&
+        "speechSynthesis" in window
+    );
+    return () => {
+      voiceOnRef.current = false;
+      speakTokenRef.current++;
+      recRef.current?.abort?.();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  function listen(mode: "voice" | "dictate") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as any;
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+
+    recRef.current?.abort?.();
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = true;
+    rec.continuous = false;
+
+    const base = mode === "dictate" && input.trim() ? input.trim() + " " : "";
+    let finalText = "";
+    let fatal = false;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      let interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      const shown = (finalText + interim).trim();
+      if (mode === "voice") setHeard(shown);
+      else setInput(base + shown);
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onerror = (e: any) => {
+      if (e.error === "no-speech" || e.error === "aborted") return;
+      fatal = true;
+      voiceOnRef.current = false;
+      setVoiceOn(false);
+      setVoiceState("idle");
+      setDictating(false);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        setVoiceError("Microphone blocked. Allow mic access for this site and try again.");
+      } else if (e.error === "network") {
+        setVoiceError(
+          "Speech recognition isn't available in this browser (Brave blocks it). Try Chrome or Edge."
+        );
+      } else {
+        setVoiceError("Voice error: " + e.error);
+      }
+    };
+
+    rec.onend = () => {
+      if (recRef.current === rec) recRef.current = null;
+      if (mode === "dictate") {
+        setDictating(false);
+        return;
+      }
+      if (fatal || !voiceOnRef.current) return;
+      const text = finalText.trim();
+      if (text) {
+        setHeard("");
+        setVoiceState("thinking");
+        awaitingReplyRef.current = true;
+        sendRef.current(text);
+      } else {
+        // nothing heard, keep listening
+        setTimeout(() => {
+          if (voiceOnRef.current && !recRef.current) listen("voice");
+        }, 300);
+      }
+    };
+
+    recRef.current = rec;
+    try {
+      rec.start();
+      if (mode === "voice") setVoiceState("listening");
+      else setDictating(true);
+    } catch {}
+  }
+
+  function speak(text: string, onEnd: () => void) {
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const token = ++speakTokenRef.current;
+    const clean = cleanForSpeech(text);
+    const chunks = clean.match(/[^.!?\n]+[.!?]*/g)?.map((s) => s.trim()).filter(Boolean) ?? [];
+    if (chunks.length === 0) {
+      onEnd();
+      return;
+    }
+    setVoiceState("speaking");
+    chunks.forEach((chunk, idx) => {
+      const u = new SpeechSynthesisUtterance(chunk);
+      u.rate = 1;
+      const finish = () => {
+        if (token !== speakTokenRef.current) return;
+        if (idx === chunks.length - 1) onEnd();
+      };
+      u.onend = finish;
+      u.onerror = finish;
+      synth.speak(u);
+    });
+  }
+
+  // When the AI finishes replying during voice mode, read it aloud
+  useEffect(() => {
+    if (prevBusyRef.current && !busy && awaitingReplyRef.current && voiceOnRef.current) {
+      awaitingReplyRef.current = false;
+      if (error) {
+        listen("voice");
+      } else {
+        const last = [...messages].reverse().find((m) => m.role === "assistant");
+        const text = last
+          ? last.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ")
+          : "";
+        speak(text, () => {
+          if (voiceOnRef.current) listen("voice");
+        });
+      }
+    }
+    prevBusyRef.current = busy;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, messages, error]);
+
+  function startVoice() {
+    setVoiceError("");
+    setHeard("");
+    voiceOnRef.current = true;
+    setVoiceOn(true);
+    listen("voice");
+  }
+
+  function endVoice() {
+    voiceOnRef.current = false;
+    awaitingReplyRef.current = false;
+    speakTokenRef.current++;
+    recRef.current?.abort?.();
+    recRef.current = null;
+    window.speechSynthesis.cancel();
+    setVoiceOn(false);
+    setVoiceState("idle");
+    setHeard("");
+  }
+
+  function tapOrb() {
+    if (voiceState === "speaking") {
+      // interrupt Crisa and start listening
+      speakTokenRef.current++;
+      window.speechSynthesis.cancel();
+      listen("voice");
+    } else if (voiceState === "thinking") {
+      return;
+    } else if (voiceState === "idle") {
+      listen("voice");
+    }
+  }
+
+  function toggleDictate() {
+    setVoiceError("");
+    if (dictating) {
+      recRef.current?.stop?.();
+    } else {
+      listen("dictate");
+    }
+  }
+
+  const stateLabel: Record<VoiceState, string> = {
+    idle: "Tap the orb to talk",
+    listening: "Listening…",
+    thinking: "Crisa is thinking…",
+    speaking: "Crisa is speaking — tap to interrupt",
+  };
+
   return (
     <div className="mx-auto flex h-dvh max-w-3xl flex-col">
       <header className="flex items-center justify-between border-b border-pink-500/20 px-4 py-3">
@@ -316,7 +542,7 @@ function ChatPane({
           <div className="mt-16 text-center">
             <h2 className="crisa-logo text-5xl font-extrabold">Crisa</h2>
             <p className="mt-3 text-neutral-400">
-              Your AI, Ask me anything.
+              Your AI,  Ask me anything.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
@@ -359,7 +585,7 @@ function ChatPane({
           </div>
         ))}
 
-        {status === "submitted" && (
+        {status === "submitted" && !voiceOn && (
           <div className="animate-pulse text-sm text-pink-400">Crisa is thinking…</div>
         )}
         {error && (
@@ -371,6 +597,11 @@ function ChatPane({
       </div>
 
       <form onSubmit={submit} className="px-4 pb-4">
+        {voiceError && !voiceOn && (
+          <div className="mb-2 rounded-md border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-300">
+            {voiceError}
+          </div>
+        )}
         <div className="flex items-end gap-2 rounded-3xl border border-pink-500/40 bg-neutral-950 p-2 shadow-[0_0_24px_-8px_rgba(255,45,146,0.6)]">
           <textarea
             value={input}
@@ -379,9 +610,35 @@ function ChatPane({
               if (e.key === "Enter" && !e.shiftKey) submit(e);
             }}
             rows={1}
-            placeholder="Message Crisa..."
+            placeholder={dictating ? "Listening…" : "Message Crisa..."}
             className="max-h-40 flex-1 resize-none bg-transparent px-3 py-2 outline-none placeholder:text-neutral-500"
           />
+
+          {supported && (
+            <>
+              <button
+                type="button"
+                onClick={toggleDictate}
+                title={dictating ? "Stop dictation" : "Dictate"}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition ${
+                  dictating
+                    ? "animate-pulse bg-pink-500 text-white"
+                    : "text-neutral-400 hover:bg-pink-500/15 hover:text-pink-300"
+                }`}
+              >
+                <MicIcon />
+              </button>
+              <button
+                type="button"
+                onClick={startVoice}
+                title="Voice chat"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-neutral-400 transition hover:bg-pink-500/15 hover:text-pink-300"
+              >
+                <WaveIcon />
+              </button>
+            </>
+          )}
+
           {busy ? (
             <button
               type="button"
@@ -410,6 +667,47 @@ function ChatPane({
           </button>
         )}
       </form>
+
+      {/* ===== Voice chat overlay ===== */}
+      {voiceOn && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/95 px-6 py-10">
+          <h2 className="crisa-logo text-3xl font-extrabold">Crisa</h2>
+
+          <div className="flex flex-col items-center gap-8">
+            <button
+              onClick={tapOrb}
+              aria-label="Voice orb"
+              className="relative flex h-44 w-44 items-center justify-center"
+            >
+              {(voiceState === "listening" || voiceState === "speaking") && (
+                <span className="absolute inset-0 animate-ping rounded-full bg-pink-500/30" />
+              )}
+              <span
+                className={`relative h-36 w-36 rounded-full bg-gradient-to-br from-pink-400 via-pink-500 to-fuchsia-700 shadow-[0_0_80px_10px_rgba(255,45,146,0.45)] transition-transform duration-500 ${
+                  voiceState === "speaking"
+                    ? "scale-110"
+                    : voiceState === "thinking"
+                    ? "animate-pulse"
+                    : ""
+                }`}
+              />
+            </button>
+
+            <p className="text-lg text-pink-200">{stateLabel[voiceState]}</p>
+
+            <p className="min-h-14 max-w-md text-center text-neutral-400">
+              {heard}
+            </p>
+          </div>
+
+          <button
+            onClick={endVoice}
+            className="rounded-full bg-neutral-200 px-8 py-3 font-semibold text-black transition hover:bg-white"
+          >
+            End voice chat
+          </button>
+        </div>
+      )}
     </div>
   );
 }
