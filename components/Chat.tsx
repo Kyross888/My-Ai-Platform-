@@ -46,11 +46,25 @@ const PlusIcon = () => (
     <path d="M12 5v14M5 12h14" />
   </svg>
 );
+const NewChatIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </svg>
+);
+const ChatBubbleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 11.5a8.4 8.4 0 0 1-12.2 7.5L3 20.5l1.6-5A8.5 8.5 0 1 1 21 11.5Z" />
+  </svg>
+);
 const TrashIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
   </svg>
 );
+
+const railBtn =
+  "flex h-10 w-10 items-center justify-center rounded-xl text-neutral-400 transition hover:bg-pink-500/15 hover:text-pink-300";
 
 /* ---------- Root: sidebar + active chat ---------- */
 export default function Chat() {
@@ -121,65 +135,91 @@ export default function Chat() {
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 shrink-0 overflow-hidden border-pink-500/20 bg-neutral-950 transition-[width] duration-300 md:relative ${
-          open ? "w-64 border-r" : "w-0 border-r-0"
+          open ? "w-64 border-r" : "w-0 border-r-0 md:w-14 md:border-r"
         }`}
       >
-        <div className="flex h-full w-64 flex-col">
-          <div className="flex items-center justify-between px-3 py-3">
-            <span className="crisa-logo px-1 text-xl font-extrabold">Crisa</span>
+        {/* ===== Expanded sidebar ===== */}
+        {open && (
+          <div className="flex h-full w-64 flex-col">
+            <div className="flex items-center justify-between px-3 py-3">
+              <span className="crisa-logo px-1 text-xl font-extrabold">Crisa</span>
+              <button
+                onClick={() => setOpen(false)}
+                title="Close sidebar"
+                className="rounded-lg p-2 text-neutral-400 transition hover:bg-pink-500/10 hover:text-pink-300"
+              >
+                <SidebarIcon />
+              </button>
+            </div>
+
+            <div className="px-3">
+              <button
+                onClick={startNew}
+                className="flex w-full items-center gap-2 rounded-xl border border-pink-500/40 px-3 py-2 text-sm text-pink-200 transition hover:bg-pink-500/15"
+              >
+                <PlusIcon /> New chat
+              </button>
+            </div>
+
+            <div className="mt-4 px-4 text-xs font-semibold uppercase tracking-wider text-neutral-500">
+              Chats
+            </div>
+
+            <nav className="mt-2 flex-1 space-y-1 overflow-y-auto px-2 pb-4">
+              {chats.length === 0 && (
+                <p className="px-2 py-3 text-sm text-neutral-600">
+                  No chats yet. Start one!
+                </p>
+              )}
+              {chats.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => selectChat(c.id)}
+                  className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition ${
+                    c.id === activeId
+                      ? "bg-pink-500/15 text-pink-100"
+                      : "text-neutral-300 hover:bg-pink-500/10"
+                  }`}
+                >
+                  <span className="truncate">{c.title}</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteChat(c.id);
+                    }}
+                    title="Delete chat"
+                    className="ml-2 shrink-0 text-neutral-500 opacity-100 transition hover:text-red-400 md:opacity-0 md:group-hover:opacity-100"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
+              ))}
+            </nav>
+          </div>
+        )}
+
+        {/* ===== Collapsed icon rail (desktop only) ===== */}
+        {!open && (
+          <div className="hidden h-full w-14 flex-col items-center gap-2 py-3 md:flex">
             <button
-              onClick={() => setOpen(false)}
-              title="Close sidebar"
-              className="rounded-lg p-2 text-neutral-400 transition hover:bg-pink-500/10 hover:text-pink-300"
+              onClick={() => setOpen(true)}
+              title="Open sidebar"
+              className={railBtn}
             >
               <SidebarIcon />
             </button>
-          </div>
-
-          <div className="px-3">
+            <button onClick={startNew} title="New chat" className={railBtn}>
+              <NewChatIcon />
+            </button>
             <button
-              onClick={startNew}
-              className="flex w-full items-center gap-2 rounded-xl border border-pink-500/40 px-3 py-2 text-sm text-pink-200 transition hover:bg-pink-500/15"
+              onClick={() => setOpen(true)}
+              title="Chats"
+              className={railBtn}
             >
-              <PlusIcon /> New chat
+              <ChatBubbleIcon />
             </button>
           </div>
-
-          <div className="mt-4 px-4 text-xs font-semibold uppercase tracking-wider text-neutral-500">
-            Chats
-          </div>
-
-          <nav className="mt-2 flex-1 space-y-1 overflow-y-auto px-2 pb-4">
-            {chats.length === 0 && (
-              <p className="px-2 py-3 text-sm text-neutral-600">
-                No chats yet. Start one!
-              </p>
-            )}
-            {chats.map((c) => (
-              <div
-                key={c.id}
-                onClick={() => selectChat(c.id)}
-                className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm transition ${
-                  c.id === activeId
-                    ? "bg-pink-500/15 text-pink-100"
-                    : "text-neutral-300 hover:bg-pink-500/10"
-                }`}
-              >
-                <span className="truncate">{c.title}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteChat(c.id);
-                  }}
-                  title="Delete chat"
-                  className="ml-2 shrink-0 text-neutral-500 opacity-100 transition hover:text-red-400 md:opacity-0 md:group-hover:opacity-100"
-                >
-                  <TrashIcon />
-                </button>
-              </div>
-            ))}
-          </nav>
-        </div>
+        )}
       </aside>
 
       {/* Main chat area */}
@@ -249,11 +289,12 @@ function ChatPane({
     <div className="mx-auto flex h-dvh max-w-3xl flex-col">
       <header className="flex items-center justify-between border-b border-pink-500/20 px-4 py-3">
         <div className="flex items-center gap-2">
+          {/* Mobile only: the desktop uses the icon rail instead */}
           {!sidebarOpen && (
             <button
               onClick={onToggleSidebar}
               title="Open sidebar"
-              className="rounded-lg p-2 text-neutral-400 transition hover:bg-pink-500/10 hover:text-pink-300"
+              className="rounded-lg p-2 text-neutral-400 transition hover:bg-pink-500/10 hover:text-pink-300 md:hidden"
             >
               <SidebarIcon />
             </button>
