@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --pink: #ff2d92;
+  --pink-soft: #ff7ac0;
+}
+
+body {
+  background:
+    radial-gradient(900px 400px at 85% -10%, rgba(255, 45, 146, 0.18), transparent 60%),
+    radial-gradient(700px 400px at -10% 110%, rgba(255, 45, 146, 0.12), transparent 60%),
+    #050505;
+  color: #f2f2f2;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+::selection {
+  background: var(--pink);
+  color: #000;
+}
+
+.crisa-logo {
+  background: linear-gradient(90deg, #ff2d92, #ff7ac0);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.markdown > * + * {
+  margin-top: 0.75rem;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-weight: 600;
+  margin-top: 1.25rem;
+  color: var(--pink-soft);
+}
+.markdown h1 { font-size: 1.4rem; }
+.markdown h2 { font-size: 1.2rem; }
+.markdown ul { list-style: disc; padding-left: 1.5rem; }
+.markdown ol { list-style: decimal; padding-left: 1.5rem; }
+.markdown li::marker { color: var(--pink); }
+.markdown strong { color: #fff; }
+.markdown a { color: var(--pink-soft); text-decoration: underline; }
+.markdown code {
+  background: #1a0a13;
+  color: #ffb3d9;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-size: 0.9em;
+}
+.markdown pre {
+  background: #0d0d0d;
+  border: 1px solid rgba(255, 45, 146, 0.3);
+  border-radius: 0.6rem;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+}
+.markdown pre code {
+  background: transparent;
+  color: #f2f2f2;
+  padding: 0;
+}
+.markdown table { border-collapse: collapse; }
+.markdown th,
+.markdown td {
+  border: 1px solid rgba(255, 45, 146, 0.3);
+  padding: 0.35rem 0.7rem;
+}
+.markdown th { background: rgba(255, 45, 146, 0.12); }
+.markdown blockquote {
+  border-left: 3px solid var(--pink);
+  padding-left: 0.9rem;
+  color: #b5b5b8;
+}
