@@ -316,7 +316,7 @@ function ChatPane({
           <div className="mt-16 text-center">
             <h2 className="crisa-logo text-5xl font-extrabold">Crisa</h2>
             <p className="mt-3 text-neutral-400">
-              Your AI, in black and pink. Ask me anything.
+              Your AI, Ask me anything.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
