@@ -26,10 +26,13 @@ function newId() {
   return crypto.randomUUID();
 }
 
+function msgText(m: UIMessage) {
+  return m.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+}
+
 function titleFrom(messages: UIMessage[]) {
   const first = messages.find((m) => m.role === "user");
-  const text =
-    first?.parts.map((p) => (p.type === "text" ? p.text : "")).join("") ?? "";
+  const text = first ? msgText(first) : "";
   const clean = text.trim().replace(/\s+/g, " ");
   if (!clean) return "New chat";
   return clean.length > 40 ? clean.slice(0, 40) + "…" : clean;
@@ -387,6 +390,63 @@ function MusicPanel({ music }: { music: Music }) {
   );
 }
 
+/* ---------- Message navigator (ticks on the right edge) ---------- */
+type NavItem = { id: string; text: string };
+
+function MessageNav({
+  items,
+  activeId,
+  onJump,
+}: {
+  items: NavItem[];
+  activeId: string;
+  onJump: (id: string) => void;
+}) {
+  return (
+    <div className="group absolute top-1/2 right-1 z-20 -translate-y-1/2">
+      {/* Ticks */}
+      <div className="no-scrollbar flex max-h-[60vh] flex-col items-end gap-2.5 overflow-y-auto px-1 py-2">
+        {items.map((it) => (
+          <button
+            key={it.id}
+            onClick={() => onJump(it.id)}
+            aria-label={it.text}
+            className="flex h-3 w-6 shrink-0 items-center justify-end"
+          >
+            <span
+              className={`block h-[3px] rounded-full transition-all ${
+                it.id === activeId ? "w-5 bg-pink-400" : "w-3 bg-neutral-600"
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Hover popup */}
+      <div className="absolute top-1/2 right-full hidden -translate-y-1/2 pr-2 group-hover:block">
+        <div className="no-scrollbar max-h-80 w-64 overflow-y-auto rounded-2xl border border-pink-500/30 bg-neutral-950/95 p-2 shadow-[0_0_30px_-10px_rgba(255,45,146,0.6)] backdrop-blur">
+          {items.map((it) => (
+            <button
+              key={it.id}
+              onClick={() => onJump(it.id)}
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-sm transition hover:bg-pink-500/10 ${
+                it.id === activeId ? "text-pink-300" : "text-neutral-300"
+              }`}
+            >
+              <span className="min-w-0 flex-1 truncate">{it.text}</span>
+              <span
+                className={`block h-[3px] w-3 shrink-0 rounded-full ${
+                  it.id === activeId ? "bg-pink-400" : "bg-neutral-600"
+                }`}
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Root: sidebar + active chat ---------- */
 export default function Chat() {
   const [chats, setChats] = useState<StoredChat[]>([]);
@@ -494,7 +554,7 @@ export default function Chat() {
               Chats
             </div>
 
-            <nav className="mt-2 flex-1 space-y-1 overflow-y-auto px-2 pb-4">
+            <nav className="no-scrollbar mt-2 flex-1 space-y-1 overflow-y-auto px-2 pb-4">
               {chats.length === 0 && (
                 <p className="px-2 py-3 text-sm text-neutral-600">
                   No chats yet. Start one!
@@ -624,6 +684,7 @@ function ChatPane({
     messages: initialMessages,
   });
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
 
   // Keep latest callback without retriggering the effect
@@ -637,6 +698,45 @@ function ChatPane({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
+
+  /* ===== Message navigator ===== */
+  const navItems: NavItem[] = messages
+    .filter((m) => m.role === "user")
+    .map((m) => ({
+      id: m.id,
+      text: msgText(m).trim().replace(/\s+/g, " ") || "(message)",
+    }));
+  const [activeMsgId, setActiveMsgId] = useState("");
+  const navRef = useRef(navItems);
+  navRef.current = navItems;
+
+  function updateActive() {
+    const el = scrollRef.current;
+    const items = navRef.current;
+    if (!el || items.length === 0) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+    if (atBottom) {
+      setActiveMsgId(items[items.length - 1].id);
+      return;
+    }
+    const line = el.scrollTop + 80;
+    let cur = items[0].id;
+    for (const it of items) {
+      const n = document.getElementById("msg-" + it.id);
+      if (n && n.offsetTop <= line) cur = it.id;
+    }
+    setActiveMsgId(cur);
+  }
+
+  useEffect(() => {
+    updateActive();
+  }, [messages]);
+
+  function jumpTo(id: string) {
+    document
+      .getElementById("msg-" + id)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   function send(text: string) {
     if (!text.trim() || busy) return;
@@ -790,9 +890,7 @@ function ChatPane({
         listen("voice");
       } else {
         const last = [...messages].reverse().find((m) => m.role === "assistant");
-        const text = last
-          ? last.parts.map((p) => (p.type === "text" ? p.text : "")).join(" ")
-          : "";
+        const text = last ? msgText(last) : "";
         speak(text, () => {
           if (voiceOnRef.current) listen("voice");
         });
@@ -877,63 +975,74 @@ function ChatPane({
         </button>
       </header>
 
-      <div className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
-        {messages.length === 0 && (
-          <div className="mt-16 text-center">
-            <h2 className="crisa-logo text-5xl font-extrabold">Crisa</h2>
-            <p className="mt-3 text-neutral-400">
-              Your AI, Ask me anything.
-            </p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => send(s)}
-                  className="rounded-2xl border border-pink-500/30 bg-pink-500/5 px-4 py-3 text-left text-sm text-neutral-200 transition hover:border-pink-400 hover:bg-pink-500/15"
-                >
-                  {s}
-                </button>
-              ))}
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollRef}
+          onScroll={updateActive}
+          className="no-scrollbar relative h-full space-y-6 overflow-y-auto py-6 pr-8 pl-4"
+        >
+          {messages.length === 0 && (
+            <div className="mt-16 text-center">
+              <h2 className="crisa-logo text-5xl font-extrabold">Crisa</h2>
+              <p className="mt-3 text-neutral-400">
+                Your AI, Ask me anything.
+              </p>
+              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => send(s)}
+                    className="rounded-2xl border border-pink-500/30 bg-pink-500/5 px-4 py-3 text-left text-sm text-neutral-200 transition hover:border-pink-400 hover:bg-pink-500/15"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
-          >
+          {messages.map((m) => (
             <div
-              className={
-                m.role === "user"
-                  ? "max-w-[85%] rounded-2xl rounded-br-sm bg-gradient-to-br from-pink-500 to-fuchsia-600 px-4 py-2 font-medium whitespace-pre-wrap text-white"
-                  : "markdown max-w-full border-l-2 border-pink-500/60 pl-4"
-              }
+              key={m.id}
+              id={"msg-" + m.id}
+              className={m.role === "user" ? "flex justify-end" : "flex justify-start"}
             >
-              {m.parts.map((p, i) =>
-                p.type === "text" ? (
-                  m.role === "user" ? (
-                    <span key={i}>{p.text}</span>
-                  ) : (
-                    <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
-                      {p.text}
-                    </ReactMarkdown>
-                  )
-                ) : null
-              )}
+              <div
+                className={
+                  m.role === "user"
+                    ? "max-w-[85%] rounded-2xl rounded-br-sm bg-gradient-to-br from-pink-500 to-fuchsia-600 px-4 py-2 font-medium whitespace-pre-wrap text-white"
+                    : "markdown max-w-full border-l-2 border-pink-500/60 pl-4"
+                }
+              >
+                {m.parts.map((p, i) =>
+                  p.type === "text" ? (
+                    m.role === "user" ? (
+                      <span key={i}>{p.text}</span>
+                    ) : (
+                      <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
+                        {p.text}
+                      </ReactMarkdown>
+                    )
+                  ) : null
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
 
-        {status === "submitted" && !voiceOn && (
-          <div className="animate-pulse text-sm text-pink-400">Crisa is thinking…</div>
+          {status === "submitted" && !voiceOn && (
+            <div className="animate-pulse text-sm text-pink-400">Crisa is thinking…</div>
+          )}
+          {error && (
+            <div className="rounded-md border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-300">
+              {error.message || "Something went wrong."}
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {navItems.length >= 2 && (
+          <MessageNav items={navItems} activeId={activeMsgId} onJump={jumpTo} />
         )}
-        {error && (
-          <div className="rounded-md border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-300">
-                      {error.message || "Something went wrong."}
-          </div>
-        )}
-        <div ref={bottomRef} />
       </div>
 
       <form onSubmit={submit} className="px-4 pb-4">
