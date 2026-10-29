@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     model: google(process.env.MODEL_ID ?? "gemini-3.5-flash"),
     system: process.env.SYSTEM_PROMPT ?? SYSTEM,
     messages: convertToModelMessages(messages),
+    maxRetries: 0,
     onError({ error }) {
       console.error("Gemini error:", error);
     },
