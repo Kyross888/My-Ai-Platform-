@@ -26,6 +26,15 @@ body {
   color: transparent;
 }
 
+/* Hide scrollbars but keep scrolling working */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 .markdown > * + * {
   margin-top: 0.75rem;
 }
