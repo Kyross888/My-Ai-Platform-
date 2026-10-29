@@ -930,7 +930,7 @@ function ChatPane({
         )}
         {error && (
           <div className="rounded-md border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-300">
-            Something went wrong. Check your API key and try again.
+                      {error.message || "Something went wrong."}
           </div>
         )}
         <div ref={bottomRef} />
