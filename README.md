@@ -12,7 +12,7 @@ cp .env.example .env.local   # then put your real API key inside
 npm run dev
 ```
 
-Open http://localhost:3000.
+
 
 ## Deploy to Vercel
 
