@@ -1180,7 +1180,7 @@ function ChatPane({
               <Logo size={88} />
               <h2 className="crisa-logo mt-4 text-5xl font-extrabold">Crisa</h2>
               <p className="mt-3 text-neutral-400">
-                Your AI, in black and pink. Ask me anything, or send a picture.
+                Your AI, Assistant Ask me anything, or send a picture.
               </p>
               <div className="mt-8 grid w-full gap-3 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
