@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -36,6 +36,31 @@ function titleFrom(messages: UIMessage[]) {
   const clean = text.trim().replace(/\s+/g, " ");
   if (!clean) return "New chat";
   return clean.length > 40 ? clean.slice(0, 40) + "…" : clean;
+}
+
+/* ---------- Crisa logo (the pink "C") ---------- */
+function Logo({ size = 28 }: { size?: number }) {
+  const gid = "cg" + useId().replace(/:/g, "");
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 200 200"
+      aria-label="Crisa logo"
+      className="shrink-0"
+    >
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ff7ac0" />
+          <stop offset="1" stopColor="#ff2d92" />
+        </linearGradient>
+      </defs>
+      <g fill={`url(#${gid})`}>
+        <path d="M64 22 H178 L150 62 Q144 70 134 70 H98 Q84 70 84 84 V162 L22 126 V62 Q22 52 31 45 L52 29 Q57 22 64 22 Z" />
+        <path d="M103 130 H136 Q146 130 152 138 L178 178 H96 V137 Q96 130 103 130 Z" />
+      </g>
+    </svg>
+  );
 }
 
 /* ---------- Icons ---------- */
@@ -531,7 +556,10 @@ export default function Chat() {
         {open && (
           <div className="flex h-full w-64 flex-col">
             <div className="flex items-center justify-between px-3 py-3">
-              <span className="crisa-logo px-1 text-xl font-extrabold">Crisa</span>
+              <span className="flex items-center gap-2 px-1">
+                <Logo size={28} />
+                <span className="crisa-logo text-xl font-extrabold">Crisa</span>
+              </span>
               <button
                 onClick={() => setOpen(false)}
                 title="Close sidebar"
@@ -592,6 +620,13 @@ export default function Chat() {
         {/* ===== Collapsed icon rail (desktop only) ===== */}
         {!open && (
           <div className="hidden h-full w-14 flex-col items-center gap-2 py-3 md:flex">
+            <button
+              onClick={() => setOpen(true)}
+              title="Crisa"
+              className="mb-1 flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-pink-500/15"
+            >
+              <Logo size={28} />
+            </button>
             <button
               onClick={() => setOpen(true)}
               title="Open sidebar"
@@ -963,6 +998,7 @@ function ChatPane({
               <SidebarIcon />
             </button>
           )}
+          <Logo size={30} />
           <h1 className="crisa-logo text-2xl font-extrabold tracking-wide">
             Crisa
           </h1>
@@ -982,12 +1018,13 @@ function ChatPane({
           className="no-scrollbar relative h-full space-y-6 overflow-y-auto py-6 pr-8 pl-4"
         >
           {messages.length === 0 && (
-            <div className="mt-16 text-center">
-              <h2 className="crisa-logo text-5xl font-extrabold">Crisa</h2>
+            <div className="mt-12 flex flex-col items-center text-center">
+              <Logo size={88} />
+              <h2 className="crisa-logo mt-4 text-5xl font-extrabold">Crisa</h2>
               <p className="mt-3 text-neutral-400">
-                Your AI, Ask me anything.
+                Your AI, in black and pink. Ask me anything.
               </p>
-              <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              <div className="mt-8 grid w-full gap-3 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (
                   <button
                     key={s}
@@ -1030,7 +1067,9 @@ function ChatPane({
           ))}
 
           {status === "submitted" && !voiceOn && (
-            <div className="animate-pulse text-sm text-pink-400">Crisa is thinking…</div>
+            <div className="flex animate-pulse items-center gap-2 text-sm text-pink-400">
+              <Logo size={18} /> Crisa is thinking…
+            </div>
           )}
           {error && (
             <div className="rounded-md border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-300">
@@ -1120,7 +1159,10 @@ function ChatPane({
       {/* ===== Voice chat overlay ===== */}
       {voiceOn && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-between bg-black/95 px-6 py-10">
-          <h2 className="crisa-logo text-3xl font-extrabold">Crisa</h2>
+          <div className="flex items-center gap-2">
+            <Logo size={34} />
+            <h2 className="crisa-logo text-3xl font-extrabold">Crisa</h2>
+          </div>
 
           <div className="flex flex-col items-center gap-8">
             <button
