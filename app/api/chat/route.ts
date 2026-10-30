@@ -1,5 +1,10 @@
 import { google } from "@ai-sdk/google";
-import { streamText, convertToModelMessages, type UIMessage } from "ai";
+import {
+  streamText,
+  convertToModelMessages,
+  type ModelMessage,
+  type UIMessage,
+} from "ai";
 
 export const maxDuration = 60;
 
@@ -14,7 +19,41 @@ How to answer:
 - For math or logic, work through it step by step and double-check the result.
 - If a request is unclear, make a sensible assumption and say so, or ask one short question.
 - If you don't know something or aren't sure, say so honestly. Never make things up.
-- Use markdown (lists, bold, headings) only when it makes the answer easier to read.`;
+- Use markdown (lists, bold, headings) only when it makes the answer easier to read.
+
+When the user sends an image:
+- Look at it carefully and describe or identify what you see (objects, text, people's actions, scene).
+- If it shows equipment, tools, products, plants, animals or food, say what it is called and what it is used for.
+- If it contains text, math or code, read it and help with it.
+- If you can't tell, say what you can see and what you are unsure about. Do not guess wildly.`;
+
+/**
+ * Turn pictures sent as "data:" links into raw bytes. Otherwise the AI SDK
+ * tries to DOWNLOAD them as if they were web addresses, which crashes on Vercel
+ * ("Cannot find module 'undici'").
+ */
+function inlineImages(messages: ModelMessage[]): ModelMessage[] {
+  return messages.map((m) => {
+    if (m.role !== "user" || !Array.isArray(m.content)) return m;
+    return {
+      ...m,
+      content: m.content.map((part) => {
+        if (
+          part.type === "file" &&
+          typeof part.data === "string" &&
+          part.data.startsWith("data:")
+        ) {
+          const comma = part.data.indexOf(",");
+          const bytes = new Uint8Array(
+            Buffer.from(part.data.slice(comma + 1), "base64")
+          );
+          return { ...part, data: bytes };
+        }
+        return part;
+      }),
+    } as ModelMessage;
+  });
+}
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -22,7 +61,7 @@ export async function POST(req: Request) {
   const result = streamText({
     model: google(process.env.MODEL_ID ?? "gemini-3.5-flash"),
     system: process.env.SYSTEM_PROMPT ?? SYSTEM,
-    messages: convertToModelMessages(messages),
+    messages: inlineImages(convertToModelMessages(messages)),
     maxRetries: 0,
     onError({ error }) {
       console.error("Gemini error:", error);
