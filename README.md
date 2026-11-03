@@ -1,4 +1,4 @@
-# C.r.i.s.a
+# C.r.i.s.a.
 
 A ChatGPT-style chat app built with Next.js, the Vercel AI SDK and Google's Gemini API (free tier).
 
